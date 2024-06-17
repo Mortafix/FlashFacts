@@ -1,0 +1,9 @@
+I'm a developer. I have an INPUT that should be in JSON format but I get an error.
+
+You must check and transform my input so that it can parse it into JSON.
+
+Working example with the input: json.load(INPUT)
+
+Return ONLY the INPUT and nothing else.
+
+# INPUT

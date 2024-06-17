@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block metatags %}
+<title>Portfolio</title>
+{% endblock %}
+{% block content %}
+<header class="header">
+    <div class="logo">
+        <a href="/">
+            <img src="/images/logo/icon.png" height="100%">
+            <h2>FLASH FACTS</h2>
+        </a>
+    </div>
+    <div class="caption">
+        News del <span><a href="/{{date}}">{{date_str}}</a></span>
+    </div>
+</header>
+<main class="card-container" style="--facts: {{categories|length}}" id="scrollContainer">
+    {% for category in categories %}
+    <div class="card" style="background-image: url(/images/{{category}}.jpg);">
+        <div class="content">
+            <h2 class="title">{{category}}</h2>
+            <p class="copy">{{ categories.get(category).get('summary') }}</p>
+            <a class="btn" href="{{date}}/{{category}}">Esplora<i class="fa fa-arrow-right"></i></a>
+        </div>
+    </div>
+    {% endfor %}
+</main>
+{% include 'footer.html' %}
+<script src="/js/dimmer.js"></script>
+<script src="/js/show.js"></script>
+{% endblock %}

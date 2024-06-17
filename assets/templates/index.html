@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block metatags %}
+<title>Portfolio</title>
+{% endblock %}
+{% block content %}
+<header class="header">
+    <div class="logo">
+        <a href="/">
+            <img src="/images/logo/icon.png" height="100%">
+            <h2>FLASH FACTS</h2>
+        </a>
+    </div>
+    <div class="caption">
+        Flash News dal Mondo
+    </div>
+</header>
+<main class="main-container">
+    <div class="calendar-container">
+        <div class="calendar-header">
+            <a href="?date={{prev_month}}"><i class="fa-solid fa-angle-left"></i></a>
+            <div class="date">
+                <h1>{{ date.strftime("%B") }}</h1>
+                <p>{{ date.strftime("%Y") }}</p>
+            </div>
+            <a href="?date={{next_month}}"><i class="fa-solid fa-angle-right"></i></a>
+        </div>
+        <div class="calendar" style="--rows: {{grid|length // 7}}">
+            <span class="day-name">Lun</span>
+            <span class="day-name">Mar</span>
+            <span class="day-name">Mer</span>
+            <span class="day-name">Gio</span>
+            <span class="day-name">Ven</span>
+            <span class="day-name">Sab</span>
+            <span class="day-name">Dom</span>
+            {% for date, css_class in grid.items() %}
+            {% if "full" in css_class %}
+            <div class="{{css_class}}" onclick="window.location.href='/{{ date.strftime('%d-%m-%Y') }}';">{{ date.strftime('%-d') }}</div>
+            {% else %}
+            <div class="{{css_class}}">{{ date.strftime('%-d') }}</div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</main>
+{% include 'footer.html' %}
+{% endblock %}

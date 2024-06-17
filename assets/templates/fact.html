@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block metatags %}
+<title>Portfolio</title>
+{% endblock %}
+{% block content %}
+<header class="header">
+    <div class="logo">
+        <a href="/">
+            <img src="/images/logo/icon.png" height="100%">
+            <h2>FLASH FACTS</h2>
+        </a>
+    </div>
+    <div class="caption">
+        News <span class="category"><a href="/{{date}}/{{category}}">{{category}}</a></span> del <span><a href="/{{date}}">{{date_str}}</a></span>
+    </div>
+</header>
+<main class="card-container single" style="--facts: 1" id="scrollContainer">
+    <div class="fact" style="background-image: url(/images/{{category}}.jpg);">
+        <div class="content">
+            <div class="header">
+                <div class="info">
+                    <span class="tag"><a href="/{{date}}/{{category}}">{{category}}</a></span>
+                    <span class="date"><a href="/{{date}}">{{date_str}}</a></span>
+                </div>
+                <h2 class="title">{{ fact.get('title') }}</h2>
+            </div>
+            <p class="copy">{{ fact.get('body') }}</p>
+            <button class="share" id="shareButton" data-url="{{date}}/{{category}}/{{n}}"><i class=" fa-solid fa-arrow-up-right-from-square"></i></button>
+        </div>
+    </div>
+</main>
+{% include 'footer.html' %}
+<script src="/js/dimmer.js"></script>
+<script src="/js/share.js"></script>
+{% endblock %}

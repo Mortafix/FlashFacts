@@ -83,7 +83,7 @@ def main(args):
     output = format_output(facts, args.format_output)
     output_exts = {"text": "txt", "markdown": "md", "json": "json"}
     filename = f"{args.output}.{output_exts.get(args.format_output)}"
-    with open(filename, "w+") as file_out:
+    with open(path.join(getenv("MAIN_FOLDER"), filename), "w+") as file_out:
         if args.format_output == "json":
             dump(output, file_out, indent=2)
         if args.format_output in ("text", "markdown"):

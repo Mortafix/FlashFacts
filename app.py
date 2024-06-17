@@ -45,8 +45,7 @@ def format_output(facts, fmt):
     )
 
 
-def main():
-    args = args_parser()
+def main(args):
     # checks arguments
     if not args.sources and not args.transcripts:
         return print("ERROR! sources file or transcripts folder must be specified")
@@ -102,7 +101,7 @@ templates = Jinja2Templates(directory="assets/templates")
 
 
 def gui():
-    run(app, host="0.0.0.0", port=8200)
+    run(app, host="0.0.0.0", port=int(getenv("FASTAPI_PORT")))
 
 
 @app.get("/favicon.ico")
@@ -189,4 +188,8 @@ def fact_page(
 
 
 if __name__ == "__main__":
-    gui()
+    args = args_parser()
+    if args.gui:
+        gui()
+    else:
+        main(args)

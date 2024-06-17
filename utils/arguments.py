@@ -46,4 +46,9 @@ def args_parser():
         action="store_true",
         help="save facts on MongoDB (mongo access required)",
     )
+    parser.add_argument(
+        "--gui",
+        action="store_true",
+        help="web gui for reading the news",
+    )
     return parser.parse_args()

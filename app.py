@@ -93,11 +93,12 @@ def main(args):
 # ---- GUI with FastAPI
 
 app = FastAPI()
-app.mount("/assets", StaticFiles(directory="assets"), name="assets")
-app.mount("/images", StaticFiles(directory="assets/images"), name="images")
-app.mount("/css", StaticFiles(directory="assets/css"), name="css")
-app.mount("/js", StaticFiles(directory="assets/js"), name="js")
-templates = Jinja2Templates(directory="assets/templates")
+assets = path.join(getenv("MAIN_FOLDER"), "assets")
+app.mount("/assets", StaticFiles(directory=assets), name="assets")
+app.mount("/images", StaticFiles(directory=path.join(assets, "images")), name="images")
+app.mount("/css", StaticFiles(directory=path.join(assets, "css")), name="css")
+app.mount("/js", StaticFiles(directory=path.join(assets, "js")), name="js")
+templates = Jinja2Templates(directory=path.join(assets, "template"))
 
 
 def gui():

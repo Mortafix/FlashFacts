@@ -1,0 +1,9 @@
+category,language,type,channel,id
+news,en,channel,BBC,@BBCNews
+news,it,playlist,Euronews,PLGWKgaTMGTQs65mOM0B_UgwDUzL2BXGcd
+sport,en,channel,Eurosport,@eurosport
+tech,en,channel,Linus Tech Tips,@LinusTechTips
+tech,en,channel,Marques Brownlee,@mkbhd
+videogame,en,channel,IGN,@IGN
+videogame,en,channel,Skill Up,@SkillUp
+videogame,en,channel,GamingBolt,@GamingBolt

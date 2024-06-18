@@ -14,9 +14,9 @@ Flash Facts provides quick and concise **news summaries** by leveraging artifici
 
 Before the first run, you’ll need the following API keys:
 
-1. [Gemini](https://google.it) API key: required for generating news summaries.
-2. [YouTube API V3](https://google.it) key: required for fetching videos from YouTube.
-3. [Optional] [Unsplash](https://google.it) API key: needed, if you want, to get automatically images from Unsplash.
+1. [Gemini](https://aistudio.google.com/app/apikey) API key: required for generating news summaries.
+2. [YouTube Data API V3](https://developers.google.com/youtube/v3) key: required for fetching videos from YouTube.
+3. [Optional] [Unsplash](https://unsplash.com/developers) API key: needed, if you want, to get automatically images from Unsplash.
 
 ## Installation & Setup
 
@@ -116,5 +116,5 @@ WEB_GUI_PORT = 8301
 ```
 
 ## Future Additions
-- OpenAI
-- Web GUI from local folder
+- OpenAI support (ChatGPT API)
+- Web GUI news from local folders

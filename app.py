@@ -98,7 +98,7 @@ app.mount("/assets", StaticFiles(directory=assets), name="assets")
 app.mount("/images", StaticFiles(directory=path.join(assets, "images")), name="images")
 app.mount("/css", StaticFiles(directory=path.join(assets, "css")), name="css")
 app.mount("/js", StaticFiles(directory=path.join(assets, "js")), name="js")
-templates = Jinja2Templates(directory=path.join(assets, "template"))
+templates = Jinja2Templates(directory=path.join(assets, "templates"))
 
 
 def gui():

@@ -13,11 +13,13 @@ def image_exists(query):
 
 
 def search_image(query):
+    if not (api_key := getenv("UNSPLASH_KEY")):
+        return
     if image_exists(query):
         return
     params = {
         "query": query,
-        "client_id": getenv("UNSPLASH_KEY"),
+        "client_id": api_key,
         "per_page": 1,
         "orientation": "portrait",
     }

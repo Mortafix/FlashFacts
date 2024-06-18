@@ -24,7 +24,7 @@ Take a step back and think step-by-step about how to achieve the best possible r
 
 # OUTPUT INSTRUCTIONS
 
-- Language output must be ITALIAN.
+- Language output must be @LANGUAGE.
 
 - Only output JSON. Only two attributes 'summary' and 'facts'. Facts need to be a list of facts. Every fact have 'title' and 'body'.
 Example: {"summary": "a nice summary of the facts", "facts": [{"title": "Incredible world news", "body": "This is the body of the fact"}]}

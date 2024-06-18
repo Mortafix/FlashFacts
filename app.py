@@ -69,7 +69,7 @@ def main(args):
     transcripts = get_transcripts(ts_folder)
 
     # generate facts with AI
-    facts = generate_facts(transcripts)
+    facts = generate_facts(transcripts, args.language)
 
     # download cover images
     for topic in facts:
@@ -102,7 +102,10 @@ templates = Jinja2Templates(directory=path.join(assets, "templates"))
 
 
 def gui():
-    run(app, host="0.0.0.0", port=int(getenv("FASTAPI_PORT")))
+    ip = getenv("WEB_GUI_HOST") or "0.0.0.0"
+    port_env = getenv("WEB_GUI_PORT")
+    port = int(port_env) if port_env else 8200
+    run(app, host=ip, port=port)
 
 
 @app.get("/favicon.ico")

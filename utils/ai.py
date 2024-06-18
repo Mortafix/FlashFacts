@@ -80,10 +80,11 @@ def parse_json_response(response):
 # ---- generation
 
 
-def generate_facts(transcripts, retry=True):
+def generate_facts(transcripts, language, retry=True):
     # promtps
     static_folder = path.join(getenv("MAIN_FOLDER"), "static")
     base_prompt = open(path.join(static_folder, "cmds/base.txt")).read()
+    base_prompt = base_prompt.replace("@LANGUAGE", language.upper())
     retry_prompt = open(path.join(static_folder, "cmds/retry.txt")).read()
     # models
     models = {"google": Gemini}

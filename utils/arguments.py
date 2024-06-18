@@ -27,6 +27,14 @@ def args_parser():
         metavar=("FOLDER"),
     )
     parser.add_argument(
+        "-l",
+        "--language",
+        type=str,
+        default="english",
+        help="output language (default: 'english')",
+        metavar=("LANGUAGE"),
+    )
+    parser.add_argument(
         "-o",
         "--output",
         type=str,

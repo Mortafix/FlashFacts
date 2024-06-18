@@ -1,6 +1,14 @@
 {% extends 'base.html' %}
 {% block metatags %}
-<title>Portfolio</title>
+<meta property="og:url" content="https://news.moris.dev" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Flash Facts | {{ fact.get('title') }}" />
+<meta property="og:description" content="{{ fact.get('body') }}" />
+<meta property="og:image" content="/images/logo/icon.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:locale" content="it_IT" />
+<meta property="og:site_name" content="Flash Facts" />
+<title>Flash Facts | {{ date_str }} | {{ category.title() }}</title>
 {% endblock %}
 {% block content %}
 <header class="header">

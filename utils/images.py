@@ -1,6 +1,6 @@
 from os import getenv, path
 
-import requests
+from requests import get
 from utils.logger import logger
 
 BASE_URL = "https://api.unsplash.com/search/photos"
@@ -13,7 +13,7 @@ def image_exists(query):
 
 
 def search_image(query):
-    if not (api_key := getenv("UNSPLASH_KEY")):
+    if not (api_key := getenv("UNSPLASH_API_KEY")):
         return
     if image_exists(query):
         return
@@ -23,7 +23,7 @@ def search_image(query):
         "per_page": 1,
         "orientation": "portrait",
     }
-    data = requests.get(BASE_URL, params=params).json()
+    data = get(BASE_URL, params=params).json()
     regular_image = data["results"][0]["urls"]["regular"]
     return download_image(query, regular_image)
 
@@ -31,6 +31,6 @@ def search_image(query):
 def download_image(query, image_url):
     query = query.replace(" ", "_")
     image_folder = path.join(getenv("MAIN_FOLDER"), "assets/images")
-    image_content = requests.get(image_url).content
+    image_content = get(image_url).content
     open(path.join(image_folder, f"{query}.jpg"), "wb+").write(image_content)
     logger.info(f"{query} > download cover image")

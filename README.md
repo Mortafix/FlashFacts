@@ -69,7 +69,7 @@ Optional parameters:
 python app.py -s examples/sources.csv -d 7
 ```
 
-2. Provide a **folder containing all transcripts**
+2. Provide a folder containing [transcripts](examples/transcripts) in **text** format
 ```bash
 python app.py -t examples/transcripts
 ```

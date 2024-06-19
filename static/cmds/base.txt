@@ -8,7 +8,7 @@ Take a step back and think step-by-step about how to achieve the best possible r
 
 - INPUT contains transcripts from multiple sources, combine them.
 
-- Read all the INPUT and find from 2 to 5 different topic.
+- Read all the INPUT and find from 2 to 7 different topic.
 
 - Extract every relevant facts. All the facts must be subjective and verifiable.
 
@@ -20,7 +20,7 @@ Take a step back and think step-by-step about how to achieve the best possible r
 
 - Extract a summary which explain the FACTS you generated in less than 40 words into a section called SUMMARY.
 
-- The SUMMARY should be informal and only cover FACTS, such as the intro/abstract of an article.
+- The SUMMARY should be informal and only cover FACTS, such as the intro of a news program.
 
 # OUTPUT INSTRUCTIONS
 

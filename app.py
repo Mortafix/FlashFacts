@@ -15,6 +15,7 @@ from utils.images import search_image
 from utils.logger import logger
 from utils.mongo import (connect, get_facts_dates, get_facts_from_mongo,
                          save_on_mongo)
+from utils.setup import setup
 from utils.yt import build_transcripts, get_transcripts, get_videos
 from uvicorn import run
 
@@ -45,7 +46,7 @@ def format_output(facts, fmt):
     )
 
 
-def main(args):
+def ai(args):
     # checks arguments
     if not args.sources and not args.transcripts:
         return print("ERROR! sources file or transcripts folder must be specified")
@@ -93,12 +94,19 @@ def main(args):
 # ---- GUI with FastAPI
 
 app = FastAPI()
-assets = path.join(getenv("MAIN_FOLDER"), "assets")
-app.mount("/assets", StaticFiles(directory=assets), name="assets")
-app.mount("/images", StaticFiles(directory=path.join(assets, "images")), name="images")
-app.mount("/css", StaticFiles(directory=path.join(assets, "css")), name="css")
-app.mount("/js", StaticFiles(directory=path.join(assets, "js")), name="js")
-templates = Jinja2Templates(directory=path.join(assets, "templates"))
+if main_folder := getenv("MAIN_FOLDER"):
+    assets = path.join(main_folder, "assets")
+    app.mount("/assets", StaticFiles(directory=assets), name="assets")
+    app.mount(
+        "/images", StaticFiles(directory=path.join(assets, "images")), name="images"
+    )
+    app.mount("/css", StaticFiles(directory=path.join(assets, "css")), name="css")
+    app.mount("/js", StaticFiles(directory=path.join(assets, "js")), name="js")
+
+
+def get_templates():
+    folder = path.join(getenv("MAIN_FOLDER"), "assets/templates")
+    return Jinja2Templates(directory=folder)
 
 
 def gui():
@@ -119,7 +127,7 @@ def home_page(request: Request, date: str = None):
     db_dates = get_facts_dates(parsed_date)
     grid = get_month_grid(parsed_date, db_dates)
     prev_month, next_month = get_adj_months(parsed_date)
-    return templates.TemplateResponse(
+    return get_templates().TemplateResponse(
         "index.html",
         {
             "request": request,
@@ -136,7 +144,7 @@ def home_page(request: Request, date: str = None):
 def index_page(request: Request, date: str = Path(..., pattern=r"\d{2}-\d{2}-\d{4}")):
     facts = get_facts_from_mongo(date) or dict()
     day_str = format(facts.get("day"), "%d %B %Y")
-    return templates.TemplateResponse(
+    return get_templates().TemplateResponse(
         "day.html",
         {
             "request": request,
@@ -154,7 +162,7 @@ def category_page(
     facts = get_facts_from_mongo(date) or dict()
     cat_facts = facts.get("output", {}).get(category, {}).get("facts", [])
     day_str = format(facts.get("day"), "%d %B %Y")
-    return templates.TemplateResponse(
+    return get_templates().TemplateResponse(
         "category.html",
         {
             "request": request,
@@ -178,7 +186,7 @@ def fact_page(
     if n <= len(cat_facts):
         fact = cat_facts[n - 1]
     day_str = format(facts.get("day"), "%d %B %Y")
-    return templates.TemplateResponse(
+    return get_templates().TemplateResponse(
         "fact.html",
         {
             "request": request,
@@ -191,9 +199,14 @@ def fact_page(
     )
 
 
-if __name__ == "__main__":
+def main():
     args = args_parser()
+    if args.setup:
+        return setup(args.setup)
     if args.gui:
-        gui()
-    else:
-        main(args)
+        return gui()
+    return ai(args)
+
+
+if __name__ == "__main__":
+    main()

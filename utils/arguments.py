@@ -59,4 +59,12 @@ def args_parser():
         action="store_true",
         help="web gui for reading the news",
     )
+    parser.add_argument(
+        "--setup",
+        nargs="?",
+        choices=["all", "api", "mongo", "gui"],
+        const="all",
+        help="setup API keys and other settings (choices: 'api', 'mongo' and 'gui')",
+        metavar=("TYPE"),
+    )
     return parser.parse_args()

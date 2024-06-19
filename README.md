@@ -36,15 +36,9 @@ source venv/bin/activate # linux and macos
 pip install -r requirements.txt
 ```
 
-Create a file named `.env` and fill up the information needed
-```env
-# file '.env'
-
-MAIN_FOLDER = "/path/to/folder"
-
-GEMINI_API_KEY = <gemini-api-key>
-YT_API_KEY = <youtube-api-key>
-UNSPLASH_KEY = <unsplash-api-key>
+Use the `--setup` argument and fill up the information needed
+```bash
+python app.py --setup
 ```
 
 ## Usage
@@ -91,14 +85,9 @@ python app.py -s examples/sources.csv -f json
 ```sh
 python app.py -s examples/sources.csv --save-on-mongo
 ```
-To use this last feature you need to add this additional information to `.env` file.
-```env
-# file '.env'
-[...]
-MONGO_USER = "mongo-user"
-MONGO_PASSWORD = "mongo-password"
-MONGO_IP = "mongo-ip"
-MONGO_COLLECTION = "collection-name"
+To use this last feature you need to setup the MongoDB connection.
+```bash
+python app.py --setup mongo
 ```
 ## Web GUI
 In order too Run the web interface, you only need to run the script with `--gui`.  
@@ -107,12 +96,9 @@ In order too Run the web interface, you only need to run the script with `--gui`
 python app.py --gui
 ```
 and go to [http://localhost:8200](http://localhost:8200).
-> If you want, you can change host and port in the .env file
-```env
-# file '.env'
-[...]
-WEB_GUI_HOST = "https://example.host"
-WEB_GUI_PORT = 8301
+You can change host and port with the setup
+```bash
+python app.py --setup gui
 ```
 Check out a **working example**: [news.moris.dev](https://news.moris.dev)  
 

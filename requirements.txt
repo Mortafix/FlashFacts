@@ -4,8 +4,10 @@ cachetools==5.3.3
 certifi==2024.6.2
 charset-normalizer==3.3.2
 click==8.1.7
+colorifix==2.0.4
 dnspython==2.6.1
 email_validator==2.1.2
+emoji==2.11.0
 fastapi==0.111.0
 fastapi-cli==0.0.4
 google-ai-generativelanguage==0.6.4
@@ -37,6 +39,7 @@ pydantic==2.7.4
 pydantic_core==2.18.4
 Pygments==2.18.0
 pymongo==4.7.3
+pymortafix==0.3.0
 pyparsing==3.1.2
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1

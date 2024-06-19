@@ -114,6 +114,7 @@ and go to [http://localhost:8200](http://localhost:8200).
 WEB_GUI_HOST = "https://example.host"
 WEB_GUI_PORT = 8301
 ```
+Check out a **working example**: [news.moris.dev](https://news.moris.dev)  
 
 ## Future Additions
 - OpenAI support (ChatGPT API)

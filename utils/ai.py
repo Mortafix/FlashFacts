@@ -50,7 +50,7 @@ class Model:
 
 
 class Gemini(Model):
-    def __init__(self, model, rpm, tpm):
+    def __init__(self, model, rpm, tpm, input_price, output_price):
         super().__init__("Google", model, rpm, tpm)
         self.model = generativeai.GenerativeModel(model)
 

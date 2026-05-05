@@ -6,7 +6,7 @@ Flash Facts provides quick and concise **news summaries** by leveraging artifici
 
 ## Features
 
-- **AI-Powered Summarization**: Uses AI models (like ChatGPT and Gemini) to summarize news articles.
+- **AI-Powered Summarization**: Uses the OpenAI API to summarize news articles.
 - **Diverse News Sources**: Aggregates news from multiple YT channels and/or playlists.
 - **User-Friendly Interface**: Simple and modern web GUI.
 
@@ -14,9 +14,10 @@ Flash Facts provides quick and concise **news summaries** by leveraging artifici
 
 Before the first run, you’ll need the following API keys:
 
-1. [Gemini](https://aistudio.google.com/app/apikey) API key: required for generating news summaries.
+1. [OpenAI](https://platform.openai.com/api-keys) API key: required for generating news summaries.
 2. [YouTube Data API V3](https://developers.google.com/youtube/v3) key: required for fetching videos from YouTube.
 3. [Optional] [Unsplash](https://unsplash.com/developers) API key: needed, if you want, to get automatically images from Unsplash.
+
 
 ## Installation & Setup
 
@@ -73,7 +74,7 @@ python app.py -t examples/transcripts
 ```sh
 python app.py -s examples/sources.csv -l italian
 ```
-- `-o`: Specify the output file path.
+- `-o`: Specify the output file path without extension.
 ```sh
 python app.py -s examples/sources.csv -o output_folder/result
 ```
@@ -103,5 +104,4 @@ python app.py --setup gui
 Check out a **working example**: [news.moris.dev](https://news.moris.dev)  
 
 ## Future Additions
-- OpenAI support (ChatGPT API)
 - Web GUI news from local folders

@@ -9,6 +9,7 @@ from tqdm import tqdm
 from utils.logger import logger
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api.formatters import TextFormatter
+from youtube_transcript_api.proxies import GenericProxyConfig
 
 memory = Memory(".cache")
 
@@ -56,6 +57,62 @@ class YTVideo(Media):
 
 
 # ---- utils
+
+
+class TranscriptProxyConfig(GenericProxyConfig):
+    def __init__(
+        self,
+        http_url=None,
+        https_url=None,
+        close_connections=True,
+        retries_when_blocked=10,
+    ):
+        super().__init__(http_url=http_url, https_url=https_url)
+        self._close_connections = close_connections
+        self._retries_when_blocked = retries_when_blocked
+
+    @property
+    def prevent_keeping_connections_alive(self):
+        return self._close_connections
+
+    @property
+    def retries_when_blocked(self):
+        return self._retries_when_blocked
+
+
+def get_bool_env(name, default=False):
+    value = getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in ("1", "true", "yes", "y", "on")
+
+
+def get_int_env(name, default):
+    value = getenv(name)
+    if not value:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        logger.warning(f"{name} must be an integer; using {default}")
+        return default
+
+
+def get_transcript_proxy_config():
+    http_url = getenv("YT_TRANSCRIPT_PROXY_HTTP_URL") or None
+    https_url = getenv("YT_TRANSCRIPT_PROXY_HTTPS_URL") or None
+    if not http_url and not https_url:
+        return None
+
+    retries = get_int_env("YT_TRANSCRIPT_PROXY_RETRIES", 10)
+    close_connections = get_bool_env("YT_TRANSCRIPT_PROXY_CLOSE_CONNECTIONS", True)
+    logger.info("YouTube transcripts > proxy enabled")
+    return TranscriptProxyConfig(
+        http_url=http_url,
+        https_url=https_url,
+        close_connections=close_connections,
+        retries_when_blocked=retries,
+    )
 
 
 @memory.cache(verbose=0)
@@ -128,11 +185,12 @@ def build_transcripts(videos):
     mkdir(trascript_folder)
     # trascipts
     formatter = TextFormatter()
+    transcript_api = YouTubeTranscriptApi(proxy_config=get_transcript_proxy_config())
     for category, cat_videos in videos.items():
         cat_videos.sort(key=lambda x: x.publish)
         for video in tqdm(cat_videos, desc=f"{category} | Videos"):
             try:
-                transcript = YouTubeTranscriptApi.get_transcript(
+                transcript = transcript_api.fetch(
                     video.id, languages=["it", "en", "es"]
                 )
                 transcript = formatter.format_transcript(transcript).replace("\n", " ")

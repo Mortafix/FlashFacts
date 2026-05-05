@@ -30,8 +30,8 @@ def args_parser():
         "-l",
         "--language",
         type=str,
-        default="english",
-        help="output language (default: 'english')",
+        default="italian",
+        help="output language (default: italian)",
         metavar=("LANGUAGE"),
     )
     parser.add_argument(
@@ -39,8 +39,8 @@ def args_parser():
         "--output",
         type=str,
         default="output/facts",
-        help="output filename (default: 'facts')",
-        metavar=("FOLDER"),
+        help="output file path without extension (default: output/facts)",
+        metavar=("FILE"),
     )
     parser.add_argument(
         "-f",

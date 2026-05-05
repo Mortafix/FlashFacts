@@ -1,11 +1,17 @@
 from os import getenv, path
 from re import search
 
-from google import generativeai
 from googleapiclient.discovery import build
 from pymongo import MongoClient
 from pymortafix.utils import strict_input
 from requests import get
+
+DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
+DEFAULT_OPENAI_REASONING_EFFORT = "low"
+DEFAULT_OPENAI_TIMEOUT_SECONDS = "120"
+DEFAULT_OPENAI_MAX_RETRIES = "3"
+DEFAULT_PROXY_RETRIES = "10"
+DEFAULT_PROXY_CLOSE_CONNECTIONS = "true"
 
 
 def setup(method):
@@ -26,11 +32,12 @@ def save_value(key, value, is_folder=False):
     main_folder = value if is_folder else getenv("MAIN_FOLDER")
     env_file = path.join(main_folder, ".env")
     content = open(env_file).read() if path.exists(env_file) else ""
-    attributes = [
-        search(r"(\w+)\s*=\s*\"(.+)\"", row).groups()
-        for row in content.split("\n")
-        if row and not row.startswith("#")
-    ]
+    attributes = []
+    for row in content.split("\n"):
+        if not row or row.startswith("#"):
+            continue
+        if match := search(r"^\s*(\w+)\s*=\s*\"(.*)\"\s*$", row):
+            attributes.append(match.groups())
     new_attributes = dict(attributes) | {key: value}
     with open(env_file, "w+") as file:
         env_text = "\n".join(f'{k}="{v}"' for k, v in new_attributes.items())
@@ -76,15 +83,32 @@ def mask_apikey(key):
     return f"{key[:5]}...{key[-5:]}"
 
 
-def check_gemini_key(key):
+def check_openai_key(key):
     if not key:
         return True
     try:
-        generativeai.configure(api_key=key)
-        list(generativeai.list_models())
+        from openai import OpenAI
+
+        OpenAI(api_key=key).models.list()
     except Exception:
         return False
     return True
+
+
+def check_int(value):
+    if not value:
+        return True
+    try:
+        int(value)
+    except ValueError:
+        return False
+    return True
+
+
+def check_bool(value):
+    if not value:
+        return True
+    return value.lower() in ("1", "0", "true", "false", "yes", "no", "y", "n")
 
 
 def check_yt_key(key):
@@ -106,17 +130,52 @@ def check_unsplash_key(key):
 
 
 def setup_api():
-    # gemini
-    gemini_key = getenv("GEMINI_API_KEY") or ""
-    gemini_text = f"Gemini API key [{mask_apikey(gemini_key)}]: "
-    gemini_apikey = strict_input(
-        gemini_text,
-        wrong_text=f"Wrong key, retry! {gemini_text}",
-        check=check_gemini_key,
+    # openai
+    openai_key = getenv("OPENAI_API_KEY") or ""
+    openai_text = f"OpenAI API key [{mask_apikey(openai_key)}]: "
+    openai_apikey = strict_input(
+        openai_text,
+        wrong_text=f"Wrong key, retry! {openai_text}",
+        check=check_openai_key,
         flush=True,
     )
-    save_value("GEMINI_API_KEY", gemini_apikey)
-    log_setup("Gemini", gemini_apikey)
+    save_value("OPENAI_API_KEY", openai_apikey)
+    log_setup("OpenAI", openai_apikey)
+
+    openai_model = getenv("OPENAI_MODEL") or DEFAULT_OPENAI_MODEL
+    model_text = f"OpenAI model [{openai_model}]: "
+    model = strict_input(model_text, flush=True)
+    save_value("OPENAI_MODEL", model or openai_model)
+    log_setup("OpenAI model", model or openai_model)
+
+    reasoning_effort = getenv("OPENAI_REASONING_EFFORT") or DEFAULT_OPENAI_REASONING_EFFORT
+    reasoning_text = f"OpenAI reasoning effort [{reasoning_effort}]: "
+    reasoning = strict_input(reasoning_text, flush=True)
+    save_value("OPENAI_REASONING_EFFORT", reasoning or reasoning_effort)
+    log_setup("OpenAI reasoning effort", reasoning or reasoning_effort)
+
+    timeout = getenv("OPENAI_TIMEOUT_SECONDS") or DEFAULT_OPENAI_TIMEOUT_SECONDS
+    timeout_text = f"OpenAI timeout seconds [{timeout}]: "
+    timeout_value = strict_input(
+        timeout_text,
+        wrong_text=f"Wrong value, retry! {timeout_text}",
+        check=check_int,
+        flush=True,
+    )
+    save_value("OPENAI_TIMEOUT_SECONDS", timeout_value or timeout)
+    log_setup("OpenAI timeout", timeout_value or timeout)
+
+    max_retries = getenv("OPENAI_MAX_RETRIES") or DEFAULT_OPENAI_MAX_RETRIES
+    retries_text = f"OpenAI max retries [{max_retries}]: "
+    retries_value = strict_input(
+        retries_text,
+        wrong_text=f"Wrong value, retry! {retries_text}",
+        check=check_int,
+        flush=True,
+    )
+    save_value("OPENAI_MAX_RETRIES", retries_value or max_retries)
+    log_setup("OpenAI retries", retries_value or max_retries)
+
     # youtube
     yt_key = getenv("YT_API_KEY")
     yt_text = f"YouTube Data API key [{mask_apikey(yt_key)}]: "
@@ -128,6 +187,47 @@ def setup_api():
     )
     save_value("YT_API_KEY", yt_apikey)
     log_setup("YT", yt_apikey)
+
+    proxy_http = getenv("YT_TRANSCRIPT_PROXY_HTTP_URL") or ""
+    proxy_http_text = f"YouTube transcript HTTP proxy [{proxy_http}]: "
+    proxy_http_value = strict_input(proxy_http_text, flush=True)
+    save_value("YT_TRANSCRIPT_PROXY_HTTP_URL", proxy_http_value or proxy_http)
+    log_setup("YT transcript HTTP proxy", proxy_http_value)
+
+    proxy_https = getenv("YT_TRANSCRIPT_PROXY_HTTPS_URL") or ""
+    proxy_https_text = f"YouTube transcript HTTPS proxy [{proxy_https}]: "
+    proxy_https_value = strict_input(proxy_https_text, flush=True)
+    save_value("YT_TRANSCRIPT_PROXY_HTTPS_URL", proxy_https_value or proxy_https)
+    log_setup("YT transcript HTTPS proxy", proxy_https_value)
+
+    proxy_retries = getenv("YT_TRANSCRIPT_PROXY_RETRIES") or DEFAULT_PROXY_RETRIES
+    proxy_retries_text = f"YouTube transcript proxy retries [{proxy_retries}]: "
+    proxy_retries_value = strict_input(
+        proxy_retries_text,
+        wrong_text=f"Wrong value, retry! {proxy_retries_text}",
+        check=check_int,
+        flush=True,
+    )
+    save_value("YT_TRANSCRIPT_PROXY_RETRIES", proxy_retries_value or proxy_retries)
+    log_setup("YT transcript proxy retries", proxy_retries_value or proxy_retries)
+
+    close_connections = (
+        getenv("YT_TRANSCRIPT_PROXY_CLOSE_CONNECTIONS")
+        or DEFAULT_PROXY_CLOSE_CONNECTIONS
+    )
+    close_text = f"YouTube transcript proxy close connections [{close_connections}]: "
+    close_value = strict_input(
+        close_text,
+        wrong_text=f"Wrong value, retry! {close_text}",
+        check=check_bool,
+        flush=True,
+    )
+    save_value(
+        "YT_TRANSCRIPT_PROXY_CLOSE_CONNECTIONS",
+        close_value or close_connections,
+    )
+    log_setup("YT transcript proxy close connections", close_value or close_connections)
+
     # unsplash
     unsplash_key = getenv("UNSPLASH_API_KEY")
     unsplash_text = f"Unsplash API key [{mask_apikey(unsplash_key)}]: "

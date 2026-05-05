@@ -4,11 +4,11 @@ from locale import LC_TIME, setlocale
 from os import getenv, path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Path, Request
+from fastapi import FastAPI, HTTPException, Path, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from utils.ai import generate_facts
+from utils.ai import OpenAIConfigurationError, generate_facts
 from utils.arguments import args_parser
 from utils.dates import get_adj_months, get_month_grid, parse_date
 from utils.images import search_image
@@ -70,7 +70,10 @@ def ai(args):
     transcripts = get_transcripts(ts_folder)
 
     # generate facts with AI
-    facts = generate_facts(transcripts, args.language)
+    try:
+        facts = generate_facts(transcripts, args.language)
+    except OpenAIConfigurationError as e:
+        return print(f"ERROR! {e}")
 
     # download cover images
     for topic in facts:
@@ -142,7 +145,7 @@ def home_page(request: Request, date: str = None):
 
 @app.get("/{date}", response_class=HTMLResponse)
 def index_page(request: Request, date: str = Path(..., pattern=r"\d{2}-\d{2}-\d{4}")):
-    facts = get_facts_from_mongo(date) or dict()
+    facts = get_facts_from_mongo(date)
     day_str = format(facts.get("day"), "%d %B %Y")
     return get_templates().TemplateResponse(
         "day.html",
@@ -159,7 +162,7 @@ def index_page(request: Request, date: str = Path(..., pattern=r"\d{2}-\d{2}-\d{
 def category_page(
     request: Request, category: str, date: str = Path(..., pattern=r"\d{2}-\d{2}-\d{4}")
 ):
-    facts = get_facts_from_mongo(date) or dict()
+    facts = get_facts_from_mongo(date)
     cat_facts = facts.get("output", {}).get(category, {}).get("facts", [])
     day_str = format(facts.get("day"), "%d %B %Y")
     return get_templates().TemplateResponse(
@@ -181,10 +184,11 @@ def fact_page(
     n: int,
     date: str = Path(..., pattern=r"\d{2}-\d{2}-\d{4}"),
 ):
-    facts = get_facts_from_mongo(date) or dict()
+    facts = get_facts_from_mongo(date)
     cat_facts = facts.get("output", {}).get(category, {}).get("facts", [])
-    if n <= len(cat_facts):
-        fact = cat_facts[n - 1]
+    if not 1 <= n <= len(cat_facts):
+        raise HTTPException(status_code=404, detail="Fact not found")
+    fact = cat_facts[n - 1]
     day_str = format(facts.get("day"), "%d %B %Y")
     return get_templates().TemplateResponse(
         "fact.html",

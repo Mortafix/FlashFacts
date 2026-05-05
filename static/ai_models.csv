@@ -1,4 +1,0 @@
-brand,model,rpm,tpm,input_price,output_price
-google,gemini-2.0-flash,15,1000000,0.10,0.40
-google,gemini-2.5-flash-preview-05-20,10,250000,0.15,0.6
-google,gemini-1.5-flash,15,1000000,0.075,0.30

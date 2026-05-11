@@ -131,9 +131,9 @@ def home_page(request: Request, date: str = None):
     grid = get_month_grid(parsed_date, db_dates)
     prev_month, next_month = get_adj_months(parsed_date)
     return get_templates().TemplateResponse(
+        request,
         "index.html",
         {
-            "request": request,
             "grid": grid,
             "date": parsed_date,
             "today": datetime.now().day,
@@ -148,9 +148,9 @@ def index_page(request: Request, date: str = Path(..., pattern=r"\d{2}-\d{2}-\d{
     facts = get_facts_from_mongo(date)
     day_str = format(facts.get("day"), "%d %B %Y")
     return get_templates().TemplateResponse(
+        request,
         "day.html",
         {
-            "request": request,
             "date": date,
             "date_str": day_str,
             "categories": facts.get("output", {}),
@@ -166,9 +166,9 @@ def category_page(
     cat_facts = facts.get("output", {}).get(category, {}).get("facts", [])
     day_str = format(facts.get("day"), "%d %B %Y")
     return get_templates().TemplateResponse(
+        request,
         "category.html",
         {
-            "request": request,
             "date": date,
             "date_str": day_str,
             "category": category,
@@ -191,9 +191,9 @@ def fact_page(
     fact = cat_facts[n - 1]
     day_str = format(facts.get("day"), "%d %B %Y")
     return get_templates().TemplateResponse(
+        request,
         "fact.html",
         {
-            "request": request,
             "date": date,
             "date_str": day_str,
             "category": category,

@@ -10,6 +10,9 @@ DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 DEFAULT_OPENAI_REASONING_EFFORT = "low"
 DEFAULT_OPENAI_TIMEOUT_SECONDS = "120"
 DEFAULT_OPENAI_MAX_RETRIES = "3"
+DEFAULT_YT_DLP_SLEEP_REQUESTS = "0.75"
+DEFAULT_YT_DLP_SLEEP_SUBTITLES = "5"
+DEFAULT_YT_DLP_COOKIES_FILE = "static/cookies.txt"
 
 
 def setup(method):
@@ -59,6 +62,24 @@ def check_path(value):
     return path.exists(value)
 
 
+def check_cookie_path(value):
+    if not value:
+        return True
+    return path.exists(resolve_project_path(value))
+
+
+def get_default_cookiefile():
+    cookiefile = resolve_project_path(DEFAULT_YT_DLP_COOKIES_FILE)
+    return cookiefile if path.exists(cookiefile) else ""
+
+
+def resolve_project_path(file_path):
+    file_path = path.expanduser(file_path)
+    if path.isabs(file_path):
+        return file_path
+    return path.join(getenv("MAIN_FOLDER") or path.abspath("."), file_path)
+
+
 def setup_general():
     default_folder = getenv("MAIN_FOLDER") or path.abspath(".")
     folder_text = f"FlashFact folder [{default_folder}]: "
@@ -98,6 +119,16 @@ def check_int(value):
         return True
     try:
         int(value)
+    except ValueError:
+        return False
+    return True
+
+
+def check_float(value):
+    if not value:
+        return True
+    try:
+        float(value)
     except ValueError:
         return False
     return True
@@ -179,6 +210,39 @@ def setup_api():
     )
     save_value("YT_API_KEY", yt_apikey)
     log_setup("YT", yt_apikey)
+
+    cookies_file = getenv("YT_DLP_COOKIES_FILE") or get_default_cookiefile()
+    cookies_text = f"yt-dlp YouTube cookies file [{cookies_file}]: "
+    cookies_value = strict_input(
+        cookies_text,
+        wrong_text=f"Wrong path, retry! {cookies_text}",
+        check=check_cookie_path,
+        flush=True,
+    )
+    save_value("YT_DLP_COOKIES_FILE", cookies_value or cookies_file)
+    log_setup("yt-dlp cookies file", cookies_value or cookies_file)
+
+    sleep_requests = getenv("YT_DLP_SLEEP_REQUESTS") or DEFAULT_YT_DLP_SLEEP_REQUESTS
+    sleep_requests_text = f"yt-dlp sleep between requests [{sleep_requests}]: "
+    sleep_requests_value = strict_input(
+        sleep_requests_text,
+        wrong_text=f"Wrong value, retry! {sleep_requests_text}",
+        check=check_float,
+        flush=True,
+    )
+    save_value("YT_DLP_SLEEP_REQUESTS", sleep_requests_value or sleep_requests)
+    log_setup("yt-dlp request sleep", sleep_requests_value or sleep_requests)
+
+    sleep_subtitles = getenv("YT_DLP_SLEEP_SUBTITLES") or DEFAULT_YT_DLP_SLEEP_SUBTITLES
+    sleep_subtitles_text = f"yt-dlp sleep before subtitles [{sleep_subtitles}]: "
+    sleep_subtitles_value = strict_input(
+        sleep_subtitles_text,
+        wrong_text=f"Wrong value, retry! {sleep_subtitles_text}",
+        check=check_float,
+        flush=True,
+    )
+    save_value("YT_DLP_SLEEP_SUBTITLES", sleep_subtitles_value or sleep_subtitles)
+    log_setup("yt-dlp subtitle sleep", sleep_subtitles_value or sleep_subtitles)
 
     # unsplash
     unsplash_key = getenv("UNSPLASH_API_KEY")

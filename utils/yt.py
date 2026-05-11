@@ -4,23 +4,28 @@ from html import unescape
 from os import getenv, makedirs, path, walk
 from re import compile
 from shutil import rmtree, which
-from tempfile import TemporaryDirectory
+from time import sleep
 
 from googleapiclient.discovery import build
 from joblib import Memory
 from tqdm import tqdm
 from utils.logger import logger
 from yt_dlp import YoutubeDL
+from yt_dlp.networking.common import Request
+from yt_dlp.networking.impersonate import ImpersonateTarget
 
 memory = Memory(".cache")
 
-SUBTITLE_EXTS = (".vtt", ".srt")
+SUBTITLE_FORMATS = ("vtt", "srt", "ttml", "srv3", "srv2", "srv1")
 JS_RUNTIME_COMMANDS = (
     ("deno", "deno"),
     ("node", "node"),
     ("quickjs", "qjs"),
     ("bun", "bun"),
 )
+DEFAULT_YT_DLP_SLEEP_REQUESTS = 0.75
+DEFAULT_YT_DLP_SLEEP_SUBTITLES = 5.0
+DEFAULT_YT_DLP_COOKIES_FILE = "static/cookies.txt"
 TIMESTAMP_RE = compile(
     r"^\d{1,2}:\d{2}:\d{2}[.,]\d{3}\s+-->\s+"
     r"\d{1,2}:\d{2}:\d{2}[.,]\d{3}"
@@ -93,12 +98,54 @@ def get_main_folder():
 
 
 def get_ydl_opts(**opts):
-    return {
+    base_opts = {
         "quiet": True,
         "no_warnings": True,
         "js_runtimes": get_js_runtimes(),
+        "sleep_interval_requests": get_float_env(
+            "YT_DLP_SLEEP_REQUESTS", DEFAULT_YT_DLP_SLEEP_REQUESTS
+        ),
+        "sleep_interval_subtitles": get_float_env(
+            "YT_DLP_SLEEP_SUBTITLES", DEFAULT_YT_DLP_SLEEP_SUBTITLES
+        ),
         "logger": YTDLPLogger(),
-    } | opts
+    }
+    if cookiefile := get_cookiefile():
+        base_opts["cookiefile"] = cookiefile
+    return base_opts | opts
+
+
+def get_float_env(name, default):
+    value = getenv(name)
+    if not value:
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        logger.warning(f"{name} must be a number; using {default}")
+        return default
+
+
+def get_cookiefile():
+    cookiefile = getenv("YT_DLP_COOKIES_FILE") or get_default_cookiefile()
+    if not cookiefile:
+        return None
+    cookiefile = resolve_project_path(cookiefile)
+    if not path.exists(cookiefile):
+        logger.warning(f"YT_DLP_COOKIES_FILE does not exist: {cookiefile}")
+    return cookiefile
+
+
+def get_default_cookiefile():
+    cookiefile = resolve_project_path(DEFAULT_YT_DLP_COOKIES_FILE)
+    return cookiefile if path.exists(cookiefile) else None
+
+
+def resolve_project_path(file_path):
+    file_path = path.expanduser(file_path)
+    if path.isabs(file_path):
+        return file_path
+    return path.join(get_main_folder(), file_path)
 
 
 def get_js_runtimes():
@@ -127,34 +174,59 @@ def get_subtitle_language(captions, language, prefer_original=False):
     return None
 
 
-def get_yt_dlp_subtitle(video):
-    with YoutubeDL(get_ydl_opts(skip_download=True)) as ydl:
-        info = ydl.extract_info(video.url, download=False)
+def get_subtitle_format(subtitles):
+    for subtitle_format in SUBTITLE_FORMATS:
+        for subtitle in subtitles:
+            if subtitle.get("ext") == subtitle_format:
+                return subtitle
+    return None
 
-    manual_language = get_subtitle_language(info.get("subtitles"), video.language)
+
+def get_yt_dlp_subtitle(info, language):
+    manual_language = get_subtitle_language(info.get("subtitles"), language)
     if manual_language:
-        return manual_language, False
+        return get_subtitle_format(info.get("subtitles", {}).get(manual_language, []))
 
     automatic_language = get_subtitle_language(
-        info.get("automatic_captions"), video.language, prefer_original=True
+        info.get("automatic_captions"), language, prefer_original=True
     )
     if automatic_language:
-        return automatic_language, True
+        return get_subtitle_format(
+            info.get("automatic_captions", {}).get(automatic_language, [])
+        )
 
-    return None, None
+    return None
 
 
-def get_downloaded_subtitle_file(folder):
-    subtitle_files = []
-    for root, _, files in walk(folder):
-        subtitle_files += [
-            path.join(root, file)
-            for file in files
-            if file.endswith(SUBTITLE_EXTS)
-        ]
-    if not subtitle_files:
-        raise FileNotFoundError("yt-dlp did not write a subtitle file")
-    return sorted(subtitle_files)[0]
+def download_subtitle(ydl, subtitle):
+    subtitle_sleep = get_float_env(
+        "YT_DLP_SLEEP_SUBTITLES", DEFAULT_YT_DLP_SLEEP_SUBTITLES
+    )
+    if subtitle_sleep:
+        sleep(subtitle_sleep)
+
+    extensions = {}
+    if impersonate := get_impersonate_target(subtitle.get("impersonate")):
+        extensions["impersonate"] = impersonate
+
+    response = ydl.urlopen(
+        Request(
+            subtitle.get("url"),
+            headers=subtitle.get("http_headers") or {},
+            extensions=extensions,
+        )
+    )
+    return response.read().decode("utf-8", errors="ignore")
+
+
+def get_impersonate_target(value):
+    if isinstance(value, ImpersonateTarget):
+        return value
+    if value is True:
+        return ImpersonateTarget()
+    if isinstance(value, str):
+        return ImpersonateTarget.from_str(value)
+    return None
 
 
 def normalize_subtitle_text(content):
@@ -182,26 +254,13 @@ def normalize_subtitle_text(content):
 
 
 def download_transcript(video):
-    subtitle_language, is_automatic = get_yt_dlp_subtitle(video)
-    if not subtitle_language:
-        raise ValueError(f"no subtitles found for language '{video.language}'")
+    with YoutubeDL(get_ydl_opts(skip_download=True)) as ydl:
+        info = ydl.extract_info(video.url, download=False)
+        subtitle = get_yt_dlp_subtitle(info, video.language)
+        if not subtitle:
+            raise ValueError(f"no subtitles found for language '{video.language}'")
 
-    with TemporaryDirectory() as folder:
-        with YoutubeDL(
-            get_ydl_opts(
-                skip_download=True,
-                writesubtitles=not is_automatic,
-                writeautomaticsub=is_automatic,
-                subtitleslangs=[subtitle_language],
-                subtitlesformat="vtt/srt/best",
-                outtmpl=path.join(folder, "%(id)s.%(ext)s"),
-            )
-        ) as ydl:
-            ydl.download([video.url])
-
-        subtitle_file = get_downloaded_subtitle_file(folder)
-        with open(subtitle_file, encoding="utf-8", errors="ignore") as file:
-            transcript = normalize_subtitle_text(file.read())
+        transcript = normalize_subtitle_text(download_subtitle(ydl, subtitle))
 
     if not transcript:
         raise ValueError("empty subtitle text")

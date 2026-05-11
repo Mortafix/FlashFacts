@@ -10,8 +10,6 @@ DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 DEFAULT_OPENAI_REASONING_EFFORT = "low"
 DEFAULT_OPENAI_TIMEOUT_SECONDS = "120"
 DEFAULT_OPENAI_MAX_RETRIES = "3"
-DEFAULT_PROXY_RETRIES = "10"
-DEFAULT_PROXY_CLOSE_CONNECTIONS = "true"
 
 
 def setup(method):
@@ -105,12 +103,6 @@ def check_int(value):
     return True
 
 
-def check_bool(value):
-    if not value:
-        return True
-    return value.lower() in ("1", "0", "true", "false", "yes", "no", "y", "n")
-
-
 def check_yt_key(key):
     if not key:
         return True
@@ -187,46 +179,6 @@ def setup_api():
     )
     save_value("YT_API_KEY", yt_apikey)
     log_setup("YT", yt_apikey)
-
-    proxy_http = getenv("YT_TRANSCRIPT_PROXY_HTTP_URL") or ""
-    proxy_http_text = f"YouTube transcript HTTP proxy [{proxy_http}]: "
-    proxy_http_value = strict_input(proxy_http_text, flush=True)
-    save_value("YT_TRANSCRIPT_PROXY_HTTP_URL", proxy_http_value or proxy_http)
-    log_setup("YT transcript HTTP proxy", proxy_http_value)
-
-    proxy_https = getenv("YT_TRANSCRIPT_PROXY_HTTPS_URL") or ""
-    proxy_https_text = f"YouTube transcript HTTPS proxy [{proxy_https}]: "
-    proxy_https_value = strict_input(proxy_https_text, flush=True)
-    save_value("YT_TRANSCRIPT_PROXY_HTTPS_URL", proxy_https_value or proxy_https)
-    log_setup("YT transcript HTTPS proxy", proxy_https_value)
-
-    proxy_retries = getenv("YT_TRANSCRIPT_PROXY_RETRIES") or DEFAULT_PROXY_RETRIES
-    proxy_retries_text = f"YouTube transcript proxy retries [{proxy_retries}]: "
-    proxy_retries_value = strict_input(
-        proxy_retries_text,
-        wrong_text=f"Wrong value, retry! {proxy_retries_text}",
-        check=check_int,
-        flush=True,
-    )
-    save_value("YT_TRANSCRIPT_PROXY_RETRIES", proxy_retries_value or proxy_retries)
-    log_setup("YT transcript proxy retries", proxy_retries_value or proxy_retries)
-
-    close_connections = (
-        getenv("YT_TRANSCRIPT_PROXY_CLOSE_CONNECTIONS")
-        or DEFAULT_PROXY_CLOSE_CONNECTIONS
-    )
-    close_text = f"YouTube transcript proxy close connections [{close_connections}]: "
-    close_value = strict_input(
-        close_text,
-        wrong_text=f"Wrong value, retry! {close_text}",
-        check=check_bool,
-        flush=True,
-    )
-    save_value(
-        "YT_TRANSCRIPT_PROXY_CLOSE_CONNECTIONS",
-        close_value or close_connections,
-    )
-    log_setup("YT transcript proxy close connections", close_value or close_connections)
 
     # unsplash
     unsplash_key = getenv("UNSPLASH_API_KEY")

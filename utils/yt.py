@@ -1,17 +1,32 @@
 from csv import DictReader
 from datetime import datetime, timedelta, timezone
-from os import getenv, mkdir, path, walk
-from shutil import rmtree
+from html import unescape
+from os import getenv, makedirs, path, walk
+from re import compile
+from shutil import rmtree, which
+from tempfile import TemporaryDirectory
 
 from googleapiclient.discovery import build
 from joblib import Memory
 from tqdm import tqdm
 from utils.logger import logger
-from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api.formatters import TextFormatter
-from youtube_transcript_api.proxies import GenericProxyConfig
+from yt_dlp import YoutubeDL
 
 memory = Memory(".cache")
+
+SUBTITLE_EXTS = (".vtt", ".srt")
+JS_RUNTIME_COMMANDS = (
+    ("deno", "deno"),
+    ("node", "node"),
+    ("quickjs", "qjs"),
+    ("bun", "bun"),
+)
+TIMESTAMP_RE = compile(
+    r"^\d{1,2}:\d{2}:\d{2}[.,]\d{3}\s+-->\s+"
+    r"\d{1,2}:\d{2}:\d{2}[.,]\d{3}"
+)
+INLINE_TIMESTAMP_RE = compile(r"<\d{1,2}:\d{2}:\d{2}\.\d{3}>")
+HTML_TAG_RE = compile(r"<[^>]+>")
 
 # ---- model
 
@@ -59,60 +74,151 @@ class YTVideo(Media):
 # ---- utils
 
 
-class TranscriptProxyConfig(GenericProxyConfig):
-    def __init__(
-        self,
-        http_url=None,
-        https_url=None,
-        close_connections=True,
-        retries_when_blocked=10,
-    ):
-        super().__init__(http_url=http_url, https_url=https_url)
-        self._close_connections = close_connections
-        self._retries_when_blocked = retries_when_blocked
-
-    @property
-    def prevent_keeping_connections_alive(self):
-        return self._close_connections
-
-    @property
-    def retries_when_blocked(self):
-        return self._retries_when_blocked
-
-
-def get_bool_env(name, default=False):
-    value = getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in ("1", "true", "yes", "y", "on")
-
-
-def get_int_env(name, default):
-    value = getenv(name)
-    if not value:
-        return default
-    try:
-        return int(value)
-    except ValueError:
-        logger.warning(f"{name} must be an integer; using {default}")
-        return default
-
-
-def get_transcript_proxy_config():
-    http_url = getenv("YT_TRANSCRIPT_PROXY_HTTP_URL") or None
-    https_url = getenv("YT_TRANSCRIPT_PROXY_HTTPS_URL") or None
-    if not http_url and not https_url:
+class YTDLPLogger:
+    def debug(self, msg):
         return None
 
-    retries = get_int_env("YT_TRANSCRIPT_PROXY_RETRIES", 10)
-    close_connections = get_bool_env("YT_TRANSCRIPT_PROXY_CLOSE_CONNECTIONS", True)
-    logger.info("YouTube transcripts > proxy enabled")
-    return TranscriptProxyConfig(
-        http_url=http_url,
-        https_url=https_url,
-        close_connections=close_connections,
-        retries_when_blocked=retries,
+    def info(self, msg):
+        return None
+
+    def warning(self, msg):
+        logger.warning(f"yt-dlp > {msg}")
+
+    def error(self, msg):
+        logger.error(f"yt-dlp > {msg}")
+
+
+def get_main_folder():
+    return getenv("MAIN_FOLDER") or path.abspath(".")
+
+
+def get_ydl_opts(**opts):
+    return {
+        "quiet": True,
+        "no_warnings": True,
+        "js_runtimes": get_js_runtimes(),
+        "logger": YTDLPLogger(),
+    } | opts
+
+
+def get_js_runtimes():
+    for runtime, command in JS_RUNTIME_COMMANDS:
+        if runtime_path := which(command):
+            return {runtime: {"path": runtime_path}}
+    logger.warning(
+        "yt-dlp > no JavaScript runtime found; install deno, node, quickjs or bun"
     )
+    return {"deno": {}}
+
+
+def get_subtitle_language(captions, language, prefer_original=False):
+    if not captions:
+        return None
+    if prefer_original:
+        candidates = [f"{language}-orig", language]
+    else:
+        candidates = [language, f"{language}-orig"]
+    candidates += sorted(
+        lang for lang in captions if lang.startswith(f"{language}-")
+    )
+    for candidate in candidates:
+        if candidate in captions:
+            return candidate
+    return None
+
+
+def get_yt_dlp_subtitle(video):
+    with YoutubeDL(get_ydl_opts(skip_download=True)) as ydl:
+        info = ydl.extract_info(video.url, download=False)
+
+    manual_language = get_subtitle_language(info.get("subtitles"), video.language)
+    if manual_language:
+        return manual_language, False
+
+    automatic_language = get_subtitle_language(
+        info.get("automatic_captions"), video.language, prefer_original=True
+    )
+    if automatic_language:
+        return automatic_language, True
+
+    return None, None
+
+
+def get_downloaded_subtitle_file(folder):
+    subtitle_files = []
+    for root, _, files in walk(folder):
+        subtitle_files += [
+            path.join(root, file)
+            for file in files
+            if file.endswith(SUBTITLE_EXTS)
+        ]
+    if not subtitle_files:
+        raise FileNotFoundError("yt-dlp did not write a subtitle file")
+    return sorted(subtitle_files)[0]
+
+
+def normalize_subtitle_text(content):
+    lines = []
+    previous = None
+    for raw_line in content.splitlines():
+        line = raw_line.strip().replace("\ufeff", "")
+        if not line or line in ("WEBVTT", "Kind: captions"):
+            continue
+        if line.startswith(("NOTE", "Language:")):
+            continue
+        if line.isdigit() or TIMESTAMP_RE.match(line):
+            continue
+
+        line = INLINE_TIMESTAMP_RE.sub("", line)
+        line = HTML_TAG_RE.sub("", line)
+        line = unescape(line).strip()
+        if not line or line == previous:
+            continue
+
+        lines.append(line)
+        previous = line
+
+    return " ".join(lines)
+
+
+def download_transcript(video):
+    subtitle_language, is_automatic = get_yt_dlp_subtitle(video)
+    if not subtitle_language:
+        raise ValueError(f"no subtitles found for language '{video.language}'")
+
+    with TemporaryDirectory() as folder:
+        with YoutubeDL(
+            get_ydl_opts(
+                skip_download=True,
+                writesubtitles=not is_automatic,
+                writeautomaticsub=is_automatic,
+                subtitleslangs=[subtitle_language],
+                subtitlesformat="vtt/srt/best",
+                outtmpl=path.join(folder, "%(id)s.%(ext)s"),
+            )
+        ) as ydl:
+            ydl.download([video.url])
+
+        subtitle_file = get_downloaded_subtitle_file(folder)
+        with open(subtitle_file, encoding="utf-8", errors="ignore") as file:
+            transcript = normalize_subtitle_text(file.read())
+
+    if not transcript:
+        raise ValueError("empty subtitle text")
+
+    return transcript
+
+
+def get_cached_transcript(video, cache_folder):
+    cache_file = path.join(cache_folder, f"{video.id}.txt")
+    if path.exists(cache_file):
+        logger.info(f"{video.channel} @ transcript cache hit ({video.url})")
+        return open(cache_file, encoding="utf-8").read()
+
+    transcript = download_transcript(video)
+    with open(cache_file, "w+", encoding="utf-8") as file:
+        file.write(transcript)
+    return transcript
 
 
 @memory.cache(verbose=0)
@@ -179,25 +285,24 @@ def get_videos(sources_file, last_days=7):
 
 def build_transcripts(videos):
     # folders
-    trascript_folder = path.join(getenv("MAIN_FOLDER"), "output/transcripts")
-    if path.exists(trascript_folder):
-        rmtree(trascript_folder)
-    mkdir(trascript_folder)
-    # trascipts
-    formatter = TextFormatter()
-    transcript_api = YouTubeTranscriptApi(proxy_config=get_transcript_proxy_config())
+    transcript_folder = path.join(get_main_folder(), "output/transcripts")
+    cache_folder = path.join(get_main_folder(), "output/transcript_cache")
+    if path.exists(transcript_folder):
+        rmtree(transcript_folder)
+    makedirs(transcript_folder)
+    makedirs(cache_folder, exist_ok=True)
+    # transcripts
     for category, cat_videos in videos.items():
         cat_videos.sort(key=lambda x: x.publish)
         for video in tqdm(cat_videos, desc=f"{category} | Videos"):
             try:
-                transcript = transcript_api.fetch(
-                    video.id, languages=["it", "en", "es"]
-                )
-                transcript = formatter.format_transcript(transcript).replace("\n", " ")
+                transcript = get_cached_transcript(video, cache_folder)
                 text = f"> {video.title}\n{transcript}\n---\n\n"
-                open(path.join(trascript_folder, f"{category}.txt"), "a+").write(text)
-            except Exception:
-                logger.error(f"{video.channel} ! No transcript found.. ({video.url})")
+                open(path.join(transcript_folder, f"{category}.txt"), "a+").write(text)
+            except Exception as e:
+                logger.error(
+                    f"{video.channel} ! No transcript found.. ({video.url}) [{e}]"
+                )
 
 
 def get_transcripts(folder):

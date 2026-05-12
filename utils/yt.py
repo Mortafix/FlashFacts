@@ -15,11 +15,13 @@ from yt_dlp.networking.common import Request
 from yt_dlp.networking.impersonate import ImpersonateTarget
 
 memory = Memory(".cache")
+logged_cookiefiles = set()
 
 SUBTITLE_FORMATS = ("vtt", "srt", "ttml", "srv3", "srv2", "srv1")
 JS_RUNTIME_COMMANDS = (
     ("deno", "deno"),
     ("node", "node"),
+    ("node", "nodejs"),
     ("quickjs", "qjs"),
     ("bun", "bun"),
 )
@@ -133,7 +135,20 @@ def get_cookiefile():
     cookiefile = resolve_project_path(cookiefile)
     if not path.exists(cookiefile):
         logger.warning(f"YT_DLP_COOKIES_FILE does not exist: {cookiefile}")
+        return None
+    log_cookiefile(cookiefile)
     return cookiefile
+
+
+def log_cookiefile(cookiefile):
+    if cookiefile in logged_cookiefiles:
+        return
+    size = path.getsize(cookiefile)
+    if size <= 0:
+        logger.warning(f"YT_DLP_COOKIES_FILE is empty: {cookiefile}")
+        return
+    logger.info(f"yt-dlp > using cookies file ({size} bytes): {cookiefile}")
+    logged_cookiefiles.add(cookiefile)
 
 
 def get_default_cookiefile():
@@ -149,13 +164,31 @@ def resolve_project_path(file_path):
 
 
 def get_js_runtimes():
+    if js_runtime := get_explicit_js_runtime():
+        return js_runtime
     for runtime, command in JS_RUNTIME_COMMANDS:
         if runtime_path := which(command):
+            logger.info(f"yt-dlp > using {runtime} JavaScript runtime: {runtime_path}")
             return {runtime: {"path": runtime_path}}
     logger.warning(
         "yt-dlp > no JavaScript runtime found; install deno, node, quickjs or bun"
     )
     return {"deno": {}}
+
+
+def get_explicit_js_runtime():
+    runtime = getenv("YT_DLP_JS_RUNTIME") or "node"
+    runtime_path = getenv("YT_DLP_JS_RUNTIME_PATH")
+    if not runtime_path:
+        return None
+
+    runtime_path = path.expanduser(runtime_path)
+    if not path.exists(runtime_path):
+        logger.warning(f"YT_DLP_JS_RUNTIME_PATH does not exist: {runtime_path}")
+        return None
+
+    logger.info(f"yt-dlp > using {runtime} JavaScript runtime: {runtime_path}")
+    return {runtime: {"path": runtime_path}}
 
 
 def get_subtitle_language(captions, language, prefer_original=False):

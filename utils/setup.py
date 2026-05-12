@@ -13,6 +13,7 @@ DEFAULT_OPENAI_MAX_RETRIES = "3"
 DEFAULT_YT_DLP_SLEEP_REQUESTS = "0.75"
 DEFAULT_YT_DLP_SLEEP_SUBTITLES = "5"
 DEFAULT_YT_DLP_COOKIES_FILE = "static/cookies.txt"
+DEFAULT_YT_DLP_JS_RUNTIME = "node"
 
 
 def setup(method):
@@ -66,6 +67,12 @@ def check_cookie_path(value):
     if not value:
         return True
     return path.exists(resolve_project_path(value))
+
+
+def check_optional_path(value):
+    if not value:
+        return True
+    return path.exists(path.expanduser(value))
 
 
 def get_default_cookiefile():
@@ -221,6 +228,23 @@ def setup_api():
     )
     save_value("YT_DLP_COOKIES_FILE", cookies_value or cookies_file)
     log_setup("yt-dlp cookies file", cookies_value or cookies_file)
+
+    js_runtime = getenv("YT_DLP_JS_RUNTIME") or DEFAULT_YT_DLP_JS_RUNTIME
+    js_runtime_text = f"yt-dlp JavaScript runtime [{js_runtime}]: "
+    js_runtime_value = strict_input(js_runtime_text, flush=True)
+    save_value("YT_DLP_JS_RUNTIME", js_runtime_value or js_runtime)
+    log_setup("yt-dlp JS runtime", js_runtime_value or js_runtime)
+
+    js_runtime_path = getenv("YT_DLP_JS_RUNTIME_PATH") or ""
+    js_runtime_path_text = f"yt-dlp JavaScript runtime path [{js_runtime_path}]: "
+    js_runtime_path_value = strict_input(
+        js_runtime_path_text,
+        wrong_text=f"Wrong path, retry! {js_runtime_path_text}",
+        check=check_optional_path,
+        flush=True,
+    )
+    save_value("YT_DLP_JS_RUNTIME_PATH", js_runtime_path_value or js_runtime_path)
+    log_setup("yt-dlp JS runtime path", js_runtime_path_value or js_runtime_path)
 
     sleep_requests = getenv("YT_DLP_SLEEP_REQUESTS") or DEFAULT_YT_DLP_SLEEP_REQUESTS
     sleep_requests_text = f"yt-dlp sleep between requests [{sleep_requests}]: "

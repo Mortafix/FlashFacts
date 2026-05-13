@@ -16,6 +16,7 @@ from yt_dlp.networking.impersonate import ImpersonateTarget
 
 memory = Memory(".cache")
 logged_cookiefiles = set()
+cached_js_runtimes = None
 
 SUBTITLE_FORMATS = ("vtt", "srt", "ttml", "srv3", "srv2", "srv1")
 JS_RUNTIME_COMMANDS = (
@@ -164,16 +165,22 @@ def resolve_project_path(file_path):
 
 
 def get_js_runtimes():
+    global cached_js_runtimes
+    if cached_js_runtimes is not None:
+        return cached_js_runtimes
+
     if js_runtime := get_explicit_js_runtime():
+        cached_js_runtimes = js_runtime
         return js_runtime
     for runtime, command in JS_RUNTIME_COMMANDS:
         if runtime_path := which(command):
-            logger.info(f"yt-dlp > using {runtime} JavaScript runtime: {runtime_path}")
-            return {runtime: {"path": runtime_path}}
+            cached_js_runtimes = {runtime: {"path": runtime_path}}
+            return cached_js_runtimes
     logger.warning(
         "yt-dlp > no JavaScript runtime found; install deno, node, quickjs or bun"
     )
-    return {"deno": {}}
+    cached_js_runtimes = {"deno": {}}
+    return cached_js_runtimes
 
 
 def get_explicit_js_runtime():
@@ -187,7 +194,6 @@ def get_explicit_js_runtime():
         logger.warning(f"YT_DLP_JS_RUNTIME_PATH does not exist: {runtime_path}")
         return None
 
-    logger.info(f"yt-dlp > using {runtime} JavaScript runtime: {runtime_path}")
     return {runtime: {"path": runtime_path}}
 
 

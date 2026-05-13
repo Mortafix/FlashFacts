@@ -10,6 +10,7 @@ DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 DEFAULT_OPENAI_REASONING_EFFORT = "low"
 DEFAULT_OPENAI_TIMEOUT_SECONDS = "120"
 DEFAULT_OPENAI_MAX_RETRIES = "3"
+DEFAULT_OPENAI_MAX_INPUT_TOKENS = "180000"
 DEFAULT_YT_DLP_SLEEP_REQUESTS = "0.75"
 DEFAULT_YT_DLP_SLEEP_SUBTITLES = "5"
 DEFAULT_YT_DLP_COOKIES_FILE = "static/cookies.txt"
@@ -178,7 +179,9 @@ def setup_api():
     save_value("OPENAI_MODEL", model or openai_model)
     log_setup("OpenAI model", model or openai_model)
 
-    reasoning_effort = getenv("OPENAI_REASONING_EFFORT") or DEFAULT_OPENAI_REASONING_EFFORT
+    reasoning_effort = (
+        getenv("OPENAI_REASONING_EFFORT") or DEFAULT_OPENAI_REASONING_EFFORT
+    )
     reasoning_text = f"OpenAI reasoning effort [{reasoning_effort}]: "
     reasoning = strict_input(reasoning_text, flush=True)
     save_value("OPENAI_REASONING_EFFORT", reasoning or reasoning_effort)
@@ -205,6 +208,25 @@ def setup_api():
     )
     save_value("OPENAI_MAX_RETRIES", retries_value or max_retries)
     log_setup("OpenAI retries", retries_value or max_retries)
+
+    max_input_tokens = (
+        getenv("OPENAI_MAX_INPUT_TOKENS") or DEFAULT_OPENAI_MAX_INPUT_TOKENS
+    )
+    max_input_tokens_text = f"OpenAI max input tokens [{max_input_tokens}]: "
+    max_input_tokens_value = strict_input(
+        max_input_tokens_text,
+        wrong_text=f"Wrong value, retry! {max_input_tokens_text}",
+        check=check_int,
+        flush=True,
+    )
+    save_value(
+        "OPENAI_MAX_INPUT_TOKENS",
+        max_input_tokens_value or max_input_tokens,
+    )
+    log_setup(
+        "OpenAI max input tokens",
+        max_input_tokens_value or max_input_tokens,
+    )
 
     # youtube
     yt_key = getenv("YT_API_KEY")

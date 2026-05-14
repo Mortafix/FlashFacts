@@ -1,3 +1,4 @@
+from math import isfinite
 from os import getenv, path
 from re import search
 
@@ -11,6 +12,7 @@ DEFAULT_OPENAI_REASONING_EFFORT = "low"
 DEFAULT_OPENAI_TIMEOUT_SECONDS = "120"
 DEFAULT_OPENAI_MAX_RETRIES = "3"
 DEFAULT_OPENAI_MAX_INPUT_TOKENS = "180000"
+DEFAULT_OPENAI_REQUEST_DELAY_SECONDS = "60"
 DEFAULT_YT_DLP_SLEEP_REQUESTS = "0.75"
 DEFAULT_YT_DLP_SLEEP_SUBTITLES = "5"
 DEFAULT_YT_DLP_COOKIES_FILE = "static/cookies.txt"
@@ -136,10 +138,9 @@ def check_float(value):
     if not value:
         return True
     try:
-        float(value)
+        return isfinite(float(value))
     except ValueError:
         return False
-    return True
 
 
 def check_yt_key(key):
@@ -226,6 +227,26 @@ def setup_api():
     log_setup(
         "OpenAI max input tokens",
         max_input_tokens_value or max_input_tokens,
+    )
+
+    request_delay = (
+        getenv("OPENAI_REQUEST_DELAY_SECONDS")
+        or DEFAULT_OPENAI_REQUEST_DELAY_SECONDS
+    )
+    request_delay_text = f"OpenAI request delay seconds [{request_delay}]: "
+    request_delay_value = strict_input(
+        request_delay_text,
+        wrong_text=f"Wrong value, retry! {request_delay_text}",
+        check=check_float,
+        flush=True,
+    )
+    save_value(
+        "OPENAI_REQUEST_DELAY_SECONDS",
+        request_delay_value or request_delay,
+    )
+    log_setup(
+        "OpenAI request delay",
+        request_delay_value or request_delay,
     )
 
     # youtube

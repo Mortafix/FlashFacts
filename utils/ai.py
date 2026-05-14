@@ -1,6 +1,7 @@
 from json import dump, loads
-from math import ceil
+from math import ceil, isfinite
 from os import getenv, path
+from time import sleep
 
 from dotenv import load_dotenv
 from tqdm import tqdm
@@ -14,6 +15,7 @@ DEFAULT_REASONING_EFFORT = "low"
 DEFAULT_TIMEOUT_SECONDS = 120
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_MAX_INPUT_TOKENS = 180000
+DEFAULT_REQUEST_DELAY_SECONDS = 60
 DEFAULT_LANGUAGE = "italian"
 PROMPT_CACHE_KEY = "flashfacts-facts-v1"
 TOKEN_CHAR_RATIO = 3
@@ -55,6 +57,17 @@ def get_int_env(name, default):
         return default
 
 
+def get_float_env(name, default):
+    value = getenv(name)
+    if not value:
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        logger.warning(f"{name} must be a number; using {default}")
+        return default
+
+
 def get_openai_client():
     api_key = getenv("OPENAI_API_KEY")
     if not api_key:
@@ -84,6 +97,19 @@ def get_reasoning_effort():
 
 def get_max_input_tokens():
     return get_int_env("OPENAI_MAX_INPUT_TOKENS", DEFAULT_MAX_INPUT_TOKENS)
+
+
+def get_request_delay_seconds():
+    delay = get_float_env(
+        "OPENAI_REQUEST_DELAY_SECONDS", DEFAULT_REQUEST_DELAY_SECONDS
+    )
+    if not isfinite(delay) or delay < 0:
+        logger.warning(
+            "OPENAI_REQUEST_DELAY_SECONDS must be a finite number 0 or greater; "
+            f"using {DEFAULT_REQUEST_DELAY_SECONDS}"
+        )
+        return DEFAULT_REQUEST_DELAY_SECONDS
+    return delay
 
 
 def build_prompt(language):
@@ -216,10 +242,19 @@ def generate_facts(transcripts, language=None, retry=None):
     client = get_openai_client()
     model = get_model_name()
     reasoning_effort = get_reasoning_effort()
+    request_delay = get_request_delay_seconds()
     language = language or DEFAULT_LANGUAGE
     facts = dict()
 
-    for category, text in tqdm(transcripts.items(), desc="Generating facts"):
+    for index, (category, text) in enumerate(
+        tqdm(transcripts.items(), desc="Generating facts")
+    ):
+        if index > 0 and request_delay:
+            logger.info(
+                f"OpenAI > waiting {request_delay:g}s before next request"
+            )
+            sleep(request_delay)
+
         text = prepare_category_transcript(category, text)
         try:
             json_res = generate_category_facts(

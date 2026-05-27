@@ -64,6 +64,14 @@ Optional parameters:
 python app.py -s examples/sources.csv -d 7
 ```
 
+YouTube API rate-limit settings can be adjusted with environment variables:
+
+```env
+YT_API_SLEEP_REQUESTS="0.5"
+YT_API_MAX_RETRIES="3"
+YT_API_RETRY_DELAY="60"
+```
+
 2. Provide a folder containing [transcripts](examples/transcripts) in **text** format
 ```bash
 python app.py -t examples/transcripts

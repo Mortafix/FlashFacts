@@ -7,6 +7,7 @@ from shutil import rmtree, which
 from time import sleep
 
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from joblib import Memory
 from tqdm import tqdm
 from utils.logger import logger
@@ -28,6 +29,9 @@ JS_RUNTIME_COMMANDS = (
 )
 DEFAULT_YT_DLP_SLEEP_REQUESTS = 0.75
 DEFAULT_YT_DLP_SLEEP_SUBTITLES = 5.0
+DEFAULT_YT_API_SLEEP_REQUESTS = 0.5
+DEFAULT_YT_API_MAX_RETRIES = 3
+DEFAULT_YT_API_RETRY_DELAY = 60.0
 DEFAULT_YT_DLP_COOKIES_FILE = "static/cookies.txt"
 TIMESTAMP_RE = compile(
     r"^\d{1,2}:\d{2}:\d{2}[.,]\d{3}\s+-->\s+"
@@ -127,6 +131,75 @@ def get_float_env(name, default):
     except ValueError:
         logger.warning(f"{name} must be a number; using {default}")
         return default
+
+
+def get_int_env(name, default):
+    value = getenv(name)
+    if not value:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        logger.warning(f"{name} must be an integer; using {default}")
+        return default
+
+
+def get_youtube():
+    return build("youtube", "v3", developerKey=getenv("YT_API_KEY"))
+
+
+def get_http_error_reason(error):
+    try:
+        details = error.error_details or []
+    except AttributeError:
+        return None
+    for detail in details:
+        if reason := detail.get("reason"):
+            return reason
+    return None
+
+
+def get_retry_after(error):
+    default_retry_delay = get_float_env(
+        "YT_API_RETRY_DELAY", DEFAULT_YT_API_RETRY_DELAY
+    )
+    retry_after = getattr(error, "resp", {}).get("retry-after")
+    if not retry_after:
+        return default_retry_delay
+    try:
+        return float(retry_after)
+    except ValueError:
+        return default_retry_delay
+
+
+def execute_youtube_request(request, description):
+    max_retries = get_int_env("YT_API_MAX_RETRIES", DEFAULT_YT_API_MAX_RETRIES)
+    request_sleep = get_float_env(
+        "YT_API_SLEEP_REQUESTS", DEFAULT_YT_API_SLEEP_REQUESTS
+    )
+    for attempt in range(max_retries + 1):
+        if request_sleep:
+            sleep(request_sleep)
+        try:
+            return request.execute()
+        except HttpError as error:
+            reason = get_http_error_reason(error)
+            is_rate_limit = error.resp.status == 429 or reason in (
+                "quotaExceeded",
+                "rateLimitExceeded",
+                "userRateLimitExceeded",
+            )
+            if not is_rate_limit or attempt >= max_retries:
+                raise
+
+            retry_after = get_retry_after(error)
+            logger.warning(
+                "YouTube API rate limit while fetching "
+                f"{description}; retrying in {retry_after:g}s "
+                f"({attempt + 1}/{max_retries})"
+            )
+            sleep(retry_after)
+    return {}
 
 
 def get_cookiefile():
@@ -321,34 +394,53 @@ def get_cached_transcript(video, cache_folder):
 
 @memory.cache(verbose=0)
 def get_channel_id(handle):
-    youtube = build("youtube", "v3", developerKey=getenv("YT_API_KEY")).search()
-    request = youtube.list(part="snippet", q=handle, type="channel")
-    response = request.execute()
+    request = get_youtube().channels().list(part="id", forHandle=handle)
+    response = execute_youtube_request(request, f"channel {handle}")
     if not (item := response.get("items")):
         return None
-    return item[0].get("snippet", {}).get("channelId")
+    return item[0].get("id")
+
+
+@memory.cache(verbose=0)
+def get_channel_uploads_playlist(channel_id):
+    request = get_youtube().channels().list(
+        part="contentDetails",
+        id=channel_id,
+        fields="items(contentDetails/relatedPlaylists/uploads)",
+    )
+    response = execute_youtube_request(request, f"uploads playlist for {channel_id}")
+    if not (item := response.get("items")):
+        return None
+    return (
+        item[0]
+        .get("contentDetails", {})
+        .get("relatedPlaylists", {})
+        .get("uploads")
+    )
 
 
 def get_latest_channel_videos(channel_id, language):
-    youtube = build("youtube", "v3", developerKey=getenv("YT_API_KEY")).search()
-    request = youtube.list(
-        part="snippet",
-        channelId=channel_id,
-        maxResults=50,
-        order="date",
-        type="video",
-    )
-    return [YTChannelVideo(vid, language) for vid in request.execute().get("items", [])]
+    playlist_id = get_channel_uploads_playlist(channel_id)
+    if not playlist_id:
+        logger.warning(f"channel {channel_id} has no uploads playlist")
+        return []
+    return get_latest_playlist_videos(playlist_id, language)
 
 
 def get_latest_playlist_videos(playlist_id, language):
-    youtube = build("youtube", "v3", developerKey=getenv("YT_API_KEY")).playlistItems()
-    request = youtube.list(
+    request = get_youtube().playlistItems().list(
         part="snippet",
         playlistId=playlist_id,
         maxResults=50,
+        fields=(
+            "items(snippet("
+            "publishedAt,title,channelTitle,"
+            "resourceId/videoId,thumbnails/default/url"
+            "))"
+        ),
     )
-    return [YTPlaylistVideo(vd, language) for vd in request.execute().get("items", [])]
+    response = execute_youtube_request(request, f"playlist {playlist_id}")
+    return [YTPlaylistVideo(vd, language) for vd in response.get("items", [])]
 
 
 # ---- app
@@ -359,9 +451,17 @@ def get_videos(sources_file, last_days=7):
     data = [source for source in DictReader(open(sources_file))]
     for source in tqdm(data, desc="Sources"):
         lang, media_id = source.get("language"), source.get("id")
+        category, title = source.get("category"), source.get("channel")
         last_videos = []
         if source.get("type") == "channel":
-            channel_id = get_channel_id(media_id) if media_id[0] == "@" else media_id
+            channel_id = (
+                get_channel_id(media_id)
+                if media_id and media_id[0] == "@"
+                else media_id
+            )
+            if not channel_id:
+                logger.warning(f"{title} > Channel not found ({media_id})")
+                continue
             last_videos = get_latest_channel_videos(channel_id, lang)
         if source.get("type") == "playlist":
             last_videos = get_latest_playlist_videos(media_id, lang)
@@ -373,7 +473,6 @@ def get_videos(sources_file, last_days=7):
             if video.publish > datetime.now(timezone.utc) - timedelta(days=last_days)
         ]
         # save
-        category, title = source.get("category"), source.get("channel")
         logger.info(f"{title} > Found {len(last_days_videos)} video(s)")
         for video in last_days_videos:
             logger.info(f"{title} @ {video.title[:50]} ({video.url})")

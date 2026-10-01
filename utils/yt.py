@@ -107,7 +107,7 @@ def get_main_folder():
 def get_ydl_opts(**opts):
     base_opts = {
         "quiet": True,
-        "no_warnings": True,
+        "no_warnings": False,
         "js_runtimes": get_js_runtimes(),
         "sleep_interval_requests": get_float_env(
             "YT_DLP_SLEEP_REQUESTS", DEFAULT_YT_DLP_SLEEP_REQUESTS
@@ -119,6 +119,11 @@ def get_ydl_opts(**opts):
     }
     if cookiefile := get_cookiefile():
         base_opts["cookiefile"] = cookiefile
+        # The default authenticated client can return "The page needs to be
+        # reloaded"; include the upstream-recommended embedded web client.
+        base_opts["extractor_args"] = {
+            "youtube": {"player_client": ["default", "web_embedded"]}
+        }
     return base_opts | opts
 
 
